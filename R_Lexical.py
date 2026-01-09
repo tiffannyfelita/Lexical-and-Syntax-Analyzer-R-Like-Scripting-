@@ -182,9 +182,23 @@ class Interpreter:
 
     def factor(self):
         if self.cur()[0]=="NUMBER":
-            v=int(self.cur()[1]); self.eat("NUMBER"); return v
-        v=self.env[self.cur()[1]]
-        self.eat("ID"); return v
+            v=int(self.cur()[1])
+            self.eat("NUMBER")
+            return v
+    
+        elif self.cur()[0]=="LPAREN":
+            self.eat("LPAREN")
+            v=self.expr()
+            self.eat("RPAREN")
+            return v
+    
+        elif self.cur()[0]=="ID":
+            name=self.cur()[1]
+            if name not in self.env:
+                raise RuntimeError(f"Variable '{name}' not defined")
+            v=self.env[name]
+            self.eat("ID")
+            return v
 
 
 # =========================
