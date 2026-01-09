@@ -73,7 +73,11 @@ class Interpreter:
         while self.pos<len(self.tokens):
             self.stmt()
 
+
     def stmt(self):
+        if self.cur()[0]=="RBRACE":
+            return
+    
         if self.cur()[1]=="print":
             self.print_stmt()
         elif self.cur()[1]=="cat":
@@ -84,6 +88,7 @@ class Interpreter:
             self.while_stmt()
         else:
             self.assign()
+
 
     def assign(self):
         v=self.cur()[1]; self.eat("ID")
