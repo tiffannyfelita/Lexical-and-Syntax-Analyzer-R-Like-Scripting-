@@ -3,27 +3,20 @@ import re
 import io
 import sys
 
-# =========================
 # LEXER
-# =========================
 TOKEN_SPEC = [
     ('NUMBER',   r'\d+'),
     ('ASSIGN',   r'<-'),
     ('MOD',      r'%%'),
-    ('LE',       r'<='),
-    ('GE',       r'>='),
-    ('LT',       r'<'),
-    ('GT',       r'>'),
-    ('NE',       r'!='),
-    ('EQ',       r'=='),
+    ('LE',       r'<='), ('GE', r'>='),
+    ('LT',       r'<'),  ('GT', r'>'),
+    ('NE',       r'!='), ('EQ', r'=='),
     ('PLUS',     r'\+'),
     ('MINUS',    r'-'),
     ('MULT',     r'\*'),
     ('DIV',      r'/'),
-    ('LPAREN',   r'\('),
-    ('RPAREN',   r'\)'),
-    ('LBRACE',   r'\{'),
-    ('RBRACE',   r'\}'),
+    ('LPAREN',   r'\('), ('RPAREN', r'\)'),
+    ('LBRACE',   r'\{'), ('RBRACE', r'\}'),
     ('COMMA',    r','),
     ('STRING',   r'"[^"]*"'),
     ('ID',       r'[a-zA-Z_]\w*'),
@@ -32,28 +25,25 @@ TOKEN_SPEC = [
 ]
 
 def lexer(code):
-    tokens = []
-    pos = 0
-    while pos < len(code):
-        match = None
-        for tok, pat in TOKEN_SPEC:
-            reg = re.compile(pat)
-            m = reg.match(code, pos)
+    tokens=[]
+    pos=0
+    while pos<len(code):
+        match=False
+        for tok,pat in TOKEN_SPEC:
+            m=re.compile(pat).match(code,pos)
             if m:
-                txt = m.group(0)
+                txt=m.group(0)
                 if tok not in ("SKIP","NEWLINE"):
                     tokens.append((tok,txt))
-                pos = m.end()
-                match = True
+                pos=m.end()
+                match=True
                 break
         if not match:
             raise SyntaxError("Illegal char: "+code[pos])
     return tokens
 
 
-# =========================
 # INTERPRETER
-# =========================
 class Interpreter:
     def __init__(self,tokens):
         self.tokens=tokens
@@ -64,7 +54,7 @@ class Interpreter:
         return self.tokens[self.pos] if self.pos<len(self.tokens) else None
 
     def eat(self,t):
-        if self.cur()[0]==t:
+        if self.cur() and self.cur()[0]==t:
             self.pos+=1
         else:
             raise SyntaxError("Unexpected token")
@@ -73,9 +63,10 @@ class Interpreter:
         while self.pos<len(self.tokens):
             self.stmt()
 
-
+    # 
     def stmt(self):
         if self.cur()[0]=="RBRACE":
+            self.eat("RBRACE")
             return
     
         if self.cur()[1]=="print":
@@ -89,21 +80,27 @@ class Interpreter:
         else:
             self.assign()
 
-
+    # 
     def assign(self):
-        v=self.cur()[1]; self.eat("ID")
+        name=self.cur()[1]
+        self.eat("ID")
         self.eat("ASSIGN")
         val=self.expr()
-        self.env[v]=val
+        self.env[name]=val
 
+    # 
     def print_stmt(self):
-        self.eat("ID"); self.eat("LPAREN")
+        self.eat("ID")
+        self.eat("LPAREN")
         txt=self.cur()[1][1:-1]
-        self.eat("STRING"); self.eat("RPAREN")
+        self.eat("STRING")
+        self.eat("RPAREN")
         print(txt)
 
+    # 
     def cat_stmt(self):
-        self.eat("ID"); self.eat("LPAREN")
+        self.eat("ID")
+        self.eat("LPAREN")
         out=[]
         while self.cur()[0]!="RPAREN":
             if self.cur()[0]=="STRING":
@@ -117,20 +114,26 @@ class Interpreter:
         self.eat("RPAREN")
         print("".join(out),end="")
 
+    # 
     def if_stmt(self):
-        self.eat("ID"); self.eat("LPAREN")
+        self.eat("ID")     # if
+        self.eat("LPAREN")
         cond=self.condition()
         self.eat("RPAREN")
         self.eat("LBRACE")
+
         if cond:
             while self.cur()[0]!="RBRACE":
                 self.stmt()
         else:
             while self.cur()[0]!="RBRACE":
                 self.pos+=1
+
         self.eat("RBRACE")
+
         if self.cur() and self.cur()[1]=="else":
-            self.eat("ID"); self.eat("LBRACE")
+            self.eat("ID")
+            self.eat("LBRACE")
             if not cond:
                 while self.cur()[0]!="RBRACE":
                     self.stmt()
@@ -139,32 +142,44 @@ class Interpreter:
                     self.pos+=1
             self.eat("RBRACE")
 
+    # 
     def while_stmt(self):
-        self.eat("ID"); self.eat("LPAREN")
-        start=self.pos
-        cond_pos=start
+        self.eat("ID")     # while
+        self.eat("LPAREN")
+
+        cond_start=self.pos
         cond=self.condition()
-        self.eat("RPAREN"); self.eat("LBRACE")
+
+        self.eat("RPAREN")
+        self.eat("LBRACE")
+
         body_start=self.pos
+
         while cond:
             self.pos=body_start
             while self.cur()[0]!="RBRACE":
                 self.stmt()
-            self.pos=cond_pos
+
+            self.pos=cond_start
             cond=self.condition()
+
         while self.cur()[0]!="RBRACE":
             self.pos+=1
         self.eat("RBRACE")
 
+    # 
     def condition(self):
         a=self.expr()
-        op=self.cur()[0]; self.pos+=1
+        op=self.cur()[0]
+        self.pos+=1
         b=self.expr()
         return {
-            "LT":a<b,"GT":a>b,"LE":a<=b,"GE":a>=b,
+            "LT":a<b,"GT":a>b,
+            "LE":a<=b,"GE":a>=b,
             "EQ":a==b,"NE":a!=b
         }[op]
 
+    # 
     def expr(self):
         r=self.term()
         while self.cur() and self.cur()[0] in ("PLUS","MINUS"):
@@ -190,13 +205,13 @@ class Interpreter:
             v=int(self.cur()[1])
             self.eat("NUMBER")
             return v
-    
+
         elif self.cur()[0]=="LPAREN":
             self.eat("LPAREN")
             v=self.expr()
             self.eat("RPAREN")
             return v
-    
+
         elif self.cur()[0]=="ID":
             name=self.cur()[1]
             if name not in self.env:
@@ -206,9 +221,7 @@ class Interpreter:
             return v
 
 
-# =========================
 # STREAMLIT UI
-# =========================
 st.title("📘 Mini R Interpreter - 4 Soal")
 
 tab1,tab2,tab3,tab4=st.tabs(["Soal 1","Soal 2","Soal 3","Soal 4"])
@@ -222,7 +235,6 @@ def run(code):
     return buf.getvalue()
 
 # -------------------------
-# SOAL 1
 with tab1:
     st.header("Print & Cat")
     code=st.text_area("",'''print("Hello, world!")
@@ -231,7 +243,6 @@ cat("Thanks")''',200)
         st.code(run(code))
 
 # -------------------------
-# SOAL 2
 with tab2:
     st.header("Arithmetic")
     code=st.text_area("",'''num1 <- 10
@@ -248,7 +259,6 @@ cat("Average is ", avg, "\\n")''',300)
         st.code(run(code))
 
 # -------------------------
-# SOAL 3
 with tab3:
     st.header("IF ELSE")
     code=st.text_area("",'''num1 <- 10
@@ -264,7 +274,6 @@ if (num1>num2) {
         st.code(run(code))
 
 # -------------------------
-# SOAL 4
 with tab4:
     st.header("Loop + IF")
     code=st.text_area("",'''cat("List of Odd Number 1-100:\\n")
